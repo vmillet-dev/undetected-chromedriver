@@ -121,9 +121,10 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         version_main=None,
         patcher_force_close=False,
         suppress_welcome=True,
-        use_subprocess=True,
+        use_subprocess=False,
         debug=False,
         no_sandbox=True,
+        windows_headless=False,
         user_multi_procs: bool = False,
         **kw,
     ):
@@ -398,9 +399,10 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         if headless or options.headless:
             #workaround until a better checking is found
             try:
-                if self.patcher.version_main < 108:
+                v_main = int(self.patcher.version_main) if self.patcher.version_main else 108
+                if v_main < 108:
                     options.add_argument("--headless=chrome")
-                elif self.patcher.version_main >= 108:
+                elif v_main >= 108:
                     options.add_argument("--headless=new")
             except:
                 logger.warning("could not detect version_main."
@@ -444,17 +446,21 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         if not desired_capabilities:
             desired_capabilities = options.to_capabilities()
 
-        if not use_subprocess:
+        if not use_subprocess and not windows_headless:
             self.browser_pid = start_detached(
                 options.binary_location, *options.arguments
             )
         else:
+            startupinfo = subprocess.STARTUPINFO()
+            if os.name == 'nt' and windows_headless:
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             browser = subprocess.Popen(
                 [options.binary_location, *options.arguments],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 close_fds=IS_POSIX,
+                startupinfo=startupinfo
             )
             self.browser_pid = browser.pid
 
@@ -764,6 +770,7 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
     def quit(self):
         try:
             self.service.process.kill()
+            self.service.process.wait(5)
             logger.debug("webdriver process ended")
         except (AttributeError, RuntimeError, OSError):
             pass
@@ -777,6 +784,15 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             logger.debug("gracefully closed browser")
         except Exception as e:  # noqa
             pass
+        # Force kill Chrome process in Windows
+        # https://github.com/FlareSolverr/FlareSolverr/issues/772
+        if os.name == 'nt':
+            try:
+                subprocess.call(['taskkill', '/f', '/pid', str(self.browser_pid)],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
         if (
             hasattr(self, "keep_user_data_dir")
             and hasattr(self, "user_data_dir")
@@ -795,7 +811,11 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
                 else:
                     logger.debug("successfully removed %s" % self.user_data_dir)
                     break
-                time.sleep(0.1)
+
+                try:
+                    time.sleep(0.1)
+                except OSError:
+                    pass
 
         # dereference patcher, so patcher can start cleaning up as well.
         # this must come last, otherwise it will throw 'in use' errors
