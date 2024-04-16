@@ -30,6 +30,8 @@ import sys
 import tempfile
 import time
 from weakref import finalize
+import psutil
+import signal
 
 import selenium.webdriver.chrome.service
 import selenium.webdriver.chrome.webdriver
@@ -767,6 +769,42 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             for elem in search_frame(f):
                 yield elem
 
+    def _kill_browser(self):
+        # save childs for kill if browser have incorrect childs killing logic.
+        browser_main_process = psutil.Process(self.browser_pid)
+        try:
+          all_childs = browser_main_process.children(recursive = True)
+        except Exception as e :
+          logger.error("browser stopping, exception on childs getting: " + str(e))
+
+        # stop gracefully
+        try:
+          os.kill(self.browser_pid, signal.SIGTERM)
+          browser_main_process.wait(timeout = 5)
+        except Exception as e :
+          logger.error("browser stopping, exception on graceful stop: " + str(e))
+
+        # kill and wait all alive browser process child processes for avoid orphans and zombie processes
+        wait_processes = []
+        for child_process in all_childs[::-1] :
+          try :
+            st = child_process.status()
+            if st != psutil.STATUS_DEAD and st != psutil.STATUS_ZOMBIE:
+              logger.debug("browser stopping, alive child kill: " + str(e))
+              os.kill(child_process.pid, signal.SIGTERM)
+            wait_processes.append(child_process) # wait zombie too
+          except Exception as e :
+            logger.debug("browser stopping, exception on child kill: " + str(e))
+
+        for wait_process in wait_processes :
+          try :
+            wait_process.wait(timeout = 1)
+          except Exception as e :
+            logger.debug("exception on child process waiting: " + str(e))
+
+        # To check that /usr/lib/chromium/chrome_crashpad_handler killed after this
+        logger.debug("gracefully closed browser")
+
     def quit(self):
         try:
             self.service.process.kill()
@@ -779,11 +817,9 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             logger.debug("shutting down reactor")
         except AttributeError:
             pass
-        try:
-            os.kill(self.browser_pid, 15)
-            logger.debug("gracefully closed browser")
-        except Exception as e:  # noqa
-            pass
+
+        self._kill_browser()
+
         # Force kill Chrome process in Windows
         # https://github.com/FlareSolverr/FlareSolverr/issues/772
         if os.name == 'nt':
