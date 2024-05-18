@@ -771,18 +771,24 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
 
     def _kill_browser(self):
         # save childs for kill if browser have incorrect childs killing logic.
-        browser_main_process = psutil.Process(self.browser_pid)
-        try:
-          all_childs = browser_main_process.children(recursive = True)
-        except Exception as e :
-          logger.error("browser stopping, exception on childs getting: " + str(e))
 
-        # stop gracefully
-        try:
-          os.kill(self.browser_pid, signal.SIGTERM)
-          browser_main_process.wait(timeout = 5)
-        except Exception as e :
-          logger.error("browser stopping, exception on graceful stop: " + str(e))
+        all_childs = []
+        if self.browser_pid is not None:
+          try:
+            browser_main_process = psutil.Process(self.browser_pid)
+            try:
+              all_childs = browser_main_process.children(recursive = True)
+            except Exception as e :
+              logger.error("browser stopping, exception on childs getting: " + str(e))
+
+            # stop gracefully
+            try:
+              os.kill(self.browser_pid, signal.SIGTERM)
+              browser_main_process.wait(timeout = 5)
+            except Exception as e :
+              logger.error("browser stopping, exception on graceful stop: " + str(e))
+          except psutil.NoSuchProcess:
+            self.browser_pid = None
 
         # kill and wait all alive browser process child processes for avoid orphans and zombie processes
         wait_processes = []
