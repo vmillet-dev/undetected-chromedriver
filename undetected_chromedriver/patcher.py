@@ -59,7 +59,7 @@ class Patcher(object):
         """
         self.force = force
         self._custom_exe_path = False
-        prefix = "undetected"
+        prefix = "uuuuuuuuuu"
         self.user_multi_procs = user_multi_procs
 
         try:
@@ -361,7 +361,7 @@ class Patcher(object):
             if match_injected_codeblock:
                 target_bytes = match_injected_codeblock[0]
                 new_target_bytes = (
-                    b'{console.log("undetected chromedriver 1337!")}'.ljust(
+                    b'{console.log("it is 1666!")}'.ljust(
                         len(target_bytes), b" "
                     )
                 )
