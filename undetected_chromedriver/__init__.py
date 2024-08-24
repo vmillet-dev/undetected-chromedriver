@@ -417,6 +417,16 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         # fixes "could not connect to chrome" error when running
         # on linux using privileged user like root (which i don't recommend)
 
+        options.add_argument("--disable-crash-reporter")
+        options.add_argument("--disable-oopr-debug-crash-dump")
+        options.add_argument("--no-crash-upload")
+        options.add_argument("--disable-client-side-phishing-detection")
+        options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--disable-dev-shm-usage")
+        # options.add_argument("--disable-low-res-tiling")
+
         options.add_argument(
             "--log-level=%d" % log_level
             or divmod(logging.getLogger().getEffectiveLevel(), 10)[0]
