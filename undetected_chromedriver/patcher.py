@@ -14,6 +14,8 @@ import shutil
 import string
 import sys
 import time
+import threading
+import fasteners
 from urllib.request import urlopen
 from urllib.request import urlretrieve
 import zipfile
@@ -154,11 +156,24 @@ class Patcher(object):
             self.executable_path = executable_path
             self._custom_exe_path = True
 
-        if self._custom_exe_path:
-            ispatched = self.is_binary_patched(self.executable_path)
-            if not ispatched:
-                return self.patch_exe()
-            else:
+        if self._custom_exe_path and not os.path.exists(self.executable_path + ".patched") :
+            lock = None
+            try :
+              lock = fasteners.InterProcessLock(self.executable_path + ".lock")
+            except :
+              # lock file can't be created
+              lock = threading.Lock()
+
+            with lock :
+              ispatched = self.is_binary_patched(self.executable_path)
+              if not ispatched:
+                res = self.patch_exe()
+                try :
+                  with open(self.executable_path + ".patched", mode = 'a'): pass
+                except :
+                  pass
+                return res
+              else:
                 return
 
         if version_main:

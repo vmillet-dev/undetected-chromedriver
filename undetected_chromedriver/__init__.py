@@ -128,6 +128,7 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         no_sandbox=True,
         windows_headless=False,
         user_multi_procs: bool = False,
+        patch_driver: bool = True,
         **kw,
     ):
         """
@@ -257,8 +258,10 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             version_main=version_main,
             user_multi_procs=user_multi_procs,
         )
+
         # self.patcher.auto(user_multiprocess = user_multi_num_procs)
-        self.patcher.auto()
+        if patch_driver :
+          self.patcher.auto()
 
         # self.patcher = patcher
         if not options:
