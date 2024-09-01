@@ -102,7 +102,9 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
 
     _instances = set()
     session_id = None
+    service = None
     debug = False
+    browser_pid = None
 
     def __init__(
         self,
@@ -785,8 +787,9 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
     def _kill_browser(self):
         # save childs for kill if browser have incorrect childs killing logic.
 
-        all_childs = []
         if self.browser_pid is not None:
+          all_childs = []
+
           try:
             browser_main_process = psutil.Process(self.browser_pid)
             try:
@@ -803,39 +806,42 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
           except psutil.NoSuchProcess:
             self.browser_pid = None
 
-        # kill and wait all alive browser process child processes for avoid orphans and zombie processes
-        wait_processes = []
-        for child_process in all_childs[::-1] :
-          try :
-            st = child_process.status()
-            if st != psutil.STATUS_DEAD and st != psutil.STATUS_ZOMBIE:
-              logger.debug("browser stopping, alive child kill: " + str(e))
-              os.kill(child_process.pid, signal.SIGTERM)
-            wait_processes.append(child_process) # wait zombie too
-          except Exception as e :
-            logger.debug("browser stopping, exception on child kill: " + str(e))
+          # kill and wait all alive browser process child processes for avoid orphans and zombie processes
+          wait_processes = []
+          for child_process in all_childs[::-1] :
+            try :
+              st = child_process.status()
+              if st != psutil.STATUS_DEAD and st != psutil.STATUS_ZOMBIE:
+                logger.debug("browser stopping, alive child kill: " + str(e))
+                os.kill(child_process.pid, signal.SIGTERM)
+              wait_processes.append(child_process) # wait zombie too
+            except Exception as e :
+              logger.debug("browser stopping, exception on child kill: " + str(e))
 
-        for wait_process in wait_processes :
-          try :
-            wait_process.wait(timeout = 1)
-          except Exception as e :
-            logger.debug("exception on child process waiting: " + str(e))
+          for wait_process in wait_processes :
+            try :
+              wait_process.wait(timeout = 1)
+            except Exception as e :
+              logger.debug("exception on child process waiting: " + str(e))
 
-        # To check that /usr/lib/chromium/chrome_crashpad_handler killed after this
-        logger.debug("gracefully closed browser")
+          # To check that /usr/lib/chromium/chrome_crashpad_handler killed after this
+          logger.debug("gracefully closed browser")
+          self.browser_pid = None
 
     def quit(self):
-        try:
-            self.service.process.kill()
-            self.service.process.wait(5)
-            logger.debug("webdriver process ended")
-        except (AttributeError, RuntimeError, OSError):
-            pass
-        try:
-            self.reactor.event.set()
-            logger.debug("shutting down reactor")
-        except AttributeError:
-            pass
+        if self.service is not None:
+          try:
+              self.service.process.kill()
+              self.service.process.wait(5)
+              logger.debug("webdriver process ended")
+          except (AttributeError, RuntimeError, OSError):
+              pass
+          try:
+              self.reactor.event.set()
+              logger.debug("shutting down reactor")
+          except AttributeError:
+              pass
+          self.service = None
 
         self._kill_browser()
 
@@ -899,10 +905,7 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.service.stop()
-        time.sleep(self._delay)
-        self.service.start()
-        self.start_session()
+        self.quit()
 
     def __hash__(self):
         return hash(self.options.debugger_address)
@@ -911,11 +914,7 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         return object.__dir__(self)
 
     def __del__(self):
-        try:
-            self.service.process.kill()
-        except:  # noqa
-            pass
-        self.quit()
+        self.quit() # Normally quit here shouldn't do anything, it should be called before
 
     @classmethod
     def _ensure_close(cls, self):

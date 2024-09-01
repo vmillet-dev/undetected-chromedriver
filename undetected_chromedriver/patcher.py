@@ -71,7 +71,7 @@ class Patcher(object):
             self.is_old_chromedriver = version_main and version_main_int <= 114
         except (ValueError,TypeError):
             # If the conversion fails, print an error message
-            print("version_main cannot be converted to an integer")
+            print("version_main cannot be converted to an integer: " + str(version_main))
             # Set self.is_old_chromedriver to False if the conversion fails
             self.is_old_chromedriver = False
 
@@ -141,6 +141,15 @@ class Patcher(object):
         Returns:
 
         """
+
+        if executable_path:
+            self.executable_path = executable_path
+            self._custom_exe_path = True
+        if version_main:
+            self.version_main = version_main
+        if force is True:
+            self.force = force
+
         p = pathlib.Path(self.data_path)
         if self.user_multi_procs:
             with Lock():
@@ -152,41 +161,40 @@ class Patcher(object):
                     self.executable_path = str(most_recent)
                     return True
 
-        if executable_path:
-            self.executable_path = executable_path
-            self._custom_exe_path = True
+        if self._custom_exe_path :
+          driver_patched_marker_file_path = os.path.join(self.data_path, "cd.patched")
+          if os.path.exists(driver_patched_marker_file_path) :
+            return True
 
-        if self._custom_exe_path and not os.path.exists(self.executable_path + ".patched") :
-            lock = None
-            try :
-              lock = fasteners.InterProcessLock(self.executable_path + ".lock")
-            except :
-              # lock file can't be created
-              lock = threading.Lock()
+          driver_patch_lock_file = os.path.join(self.data_path, "cd.patch.lock")
+          lock = None
+          try :
+            lock = fasteners.InterProcessLock(driver_patch_lock_file)
+            logger.info("patching lock created: %s" % driver_patch_lock_file)
+          except :
+            # lock file can't be created
+            lock = threading.Lock()
 
-            with lock :
-              ispatched = self.is_binary_patched(self.executable_path)
-              if not ispatched:
-                res = self.patch_exe()
-                try :
-                  with open(self.executable_path + ".patched", mode = 'a'): pass
-                except :
-                  pass
-                return res
-              else:
-                return
+          with lock :
+            is_patched = True
+            if not os.path.exists(driver_patched_marker_file_path) : # Recheck under lock
+              is_patched = self.is_binary_patched(self.executable_path)
+              if not is_patched:
+                is_patched = self.patch_exe()
+              try :
+                with open(driver_patched_marker_file_path, mode = 'a'): pass
+              except :
+                pass
+            return is_patched
+            
 
-        if version_main:
-            self.version_main = version_main
-        if force is True:
-            self.force = force
-
+        # not self._custom_exe_path
         try:
             os.unlink(self.executable_path)
         except PermissionError:
             if self.force:
                 self.force_kill_instances(self.executable_path)
-                return self.auto(force=not self.force)
+                return self.auto(force = not self.force)
             try:
                 if self.is_binary_patched():
                     # assumes already running AND patched
@@ -201,7 +209,8 @@ class Patcher(object):
         self.version_main = release.version[0]
         self.version_full = release
         self.unzip_package(self.fetch_package())
-        return self.patch()
+
+        return self.patch_exe()
 
     def driver_binary_in_use(self, path: str = None) -> bool:
         """
@@ -249,10 +258,6 @@ class Patcher(object):
                 item.unlink()
             except:
                 pass
-
-    def patch(self):
-        self.patch_exe()
-        return self.is_binary_patched()
 
     def fetch_release_number(self):
         """
@@ -395,6 +400,7 @@ class Patcher(object):
         logger.debug(
             "patching took us {:.2f} seconds".format(time.perf_counter() - start)
         )
+        return self.is_binary_patched()
 
     def __repr__(self):
         return "{0:s}({1:s})".format(
