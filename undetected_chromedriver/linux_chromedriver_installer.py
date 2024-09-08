@@ -61,8 +61,14 @@ def download_and_install(version_prefix) :
   extract_root = '/usr/bin/'
   unzip_package(fetch_package(chrome_download_url), extract_root = extract_root, extract_sub_directory = 'chrome-linux64')
   unzip_package(fetch_package(chromedriver_download_url), extract_root = extract_root, extract_sub_directory = 'chromedriver-linux64')
+
   os.chmod(os.path.join(extract_root, 'chrome'), 0o755)
+  os.chmod(os.path.join(extract_root, 'chrome-wrapper'), 0o755)
+  os.chmod(os.path.join(extract_root, 'chrome_crashpad_handler'), 0o755)
+  os.chmod(os.path.join(extract_root, 'chrome_sandbox'), 0o755)
+
   os.chmod(os.path.join(extract_root, 'chromedriver'), 0o755)
+
   os.system("sed -i 's/Google Chrome for Testing/Google Chrome\\x00for Testing/' " + str(extract_root) + "/chrome")
   # patch chromedriver
   with io.open(os.path.join(extract_root, 'chromedriver'), "r+b") as fh:
