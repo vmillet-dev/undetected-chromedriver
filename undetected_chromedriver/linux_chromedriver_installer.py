@@ -35,22 +35,31 @@ def download_and_install(version_prefix) :
   with urlopen("https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json") as conn:
     response = conn.read().decode()
   response_json = json.loads(response)
+
+  # If version is undefined : use max_version
+  if version_prefix == '' :
+    version_prefix = None
+
   for version_obj in response_json['versions'] :
-    if ('version' in version_obj and version_obj['version'].startswith(version_prefix) and 'downloads' in version_obj) :
+    if ('version' in version_obj and 'downloads' in version_obj and (
+        version_prefix is None or version_obj['version'].startswith(version_prefix))) :
       downloads_obj = version_obj['downloads']
-      #print("Check version: " + str(version_obj['version']) + ": " + str(downloads_obj))
       if ('chrome' in downloads_obj and 'chromedriver' in downloads_obj):
-        #print("XXX")
+        local_chrome_download_url = None
+        local_chromedriver_download_url = None
+
         for platform_obj in downloads_obj['chrome'] :
           if platform_obj['platform'] == target_platform :
-            chrome_download_url = platform_obj['url']
+            local_chrome_download_url = platform_obj['url']
         for platform_obj in downloads_obj['chromedriver'] :
           if platform_obj['platform'] == target_platform :
-            chromedriver_download_url = platform_obj['url']
-        if chrome_download_url is not None and chromedriver_download_url is not None :
-          break
-        chrome_download_url = None
-        chromedriver_download_url = None
+            local_chromedriver_download_url = platform_obj['url']
+
+        if local_chrome_download_url is not None and local_chromedriver_download_url is not None :
+          chrome_download_url = local_chrome_download_url
+          chromedriver_download_url = local_chromedriver_download_url
+          if version_prefix is not None :
+            break
 
   if chrome_download_url is None or chromedriver_download_url is None :
     print("Can't find download urls")
