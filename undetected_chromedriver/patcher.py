@@ -162,11 +162,11 @@ class Patcher(object):
                     return True
 
         if self._custom_exe_path :
-          driver_patched_marker_file_path = os.path.join(self.data_path, "cd.patched")
+          driver_patched_marker_file_path = os.path.join(os.path.dirname(self.executable_path), "cd.patched")
           if os.path.exists(driver_patched_marker_file_path) :
             return True
 
-          driver_patch_lock_file = os.path.join(self.data_path, "cd.patch.lock")
+          driver_patch_lock_file = os.path.join(os.path.dirname(self.executable_path), "cd.patch.lock")
           lock = None
           try :
             lock = fasteners.InterProcessLock(driver_patch_lock_file)
