@@ -46,7 +46,8 @@ setup(
         "websockets",
         "psutil",
         "fasteners",
-        "packaging"
+        "packaging",
+        "pyvirtualdisplay"
     ],
     package_data={"undetected_chromedriver": [os.path.join("example", "example.py")]},
     url="https://github.com/ultrafunkamsterdam/undetected-chromedriver",

@@ -32,6 +32,7 @@ import time
 from weakref import finalize
 import psutil
 import signal
+from pyvirtualdisplay import Display
 
 import selenium.webdriver.chrome.service
 import selenium.webdriver.chrome.webdriver
@@ -43,7 +44,7 @@ import selenium.webdriver.remote.webdriver
 from .cdp import CDP
 from .dprocess import start_detached
 from .options import ChromeOptions
-from .patcher import IS_POSIX
+from .patcher import IS_POSIX, IS_HEADLESS
 from .patcher import Patcher
 from .reactor import Reactor
 from .webelement import UCWebElement
@@ -105,6 +106,7 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
     service = None
     debug = False
     browser_pid = None
+    display = None
 
     def __init__(
         self,
@@ -253,6 +255,9 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         """
 
         finalize(self, self._ensure_close, self)
+        if IS_HEADLESS and IS_POSIX:
+            self.display = Display()
+            self.display.start()
         self.debug = debug
         self.patcher = Patcher(
             executable_path=driver_executable_path,
@@ -905,6 +910,9 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.display:
+            self.display.stop()
+        
         self.quit()
 
     def __hash__(self):

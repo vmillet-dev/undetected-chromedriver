@@ -24,7 +24,7 @@ from multiprocessing import Lock
 logger = logging.getLogger(__name__)
 
 IS_POSIX = sys.platform.startswith(("darwin", "cygwin", "linux", "linux2"))
-
+IS_HEADLESS = os.environ.get("DISPLAY") is None
 
 class Patcher(object):
     lock = Lock()
